@@ -2,6 +2,8 @@
 
 一个用 C++17 编写的 Minecraft Java 版命令行下载器，默认通过 **BMCLAPI** 下载，Windows 10/11 x64 可用。
 
+GitHub 仓库：<https://github.com/XiaLize/MineFetch>
+
 程序只负责补齐游戏文件，不包含微软登录、JVM 启动和 `natives` 解压。下载完成后可以直接交给 HMCL、PCL 等启动器使用，或者在此基础上继续编写启动器。
 
 > BMCLAPI 下的文件版权归原站点所有。本程序在下载界面明确显示当前下载源；请遵守 [BMCLAPI 文档](https://bmclapidoc.bangbang93.com/) 的使用规范，不要拿它二次封装其他协议。
@@ -24,6 +26,13 @@
 - 无第三方运行时依赖：HTTP 使用 WinHTTP，SHA-1 使用 Windows CNG，JSON 解析器自带。
 
 ## 构建
+
+克隆仓库：
+
+```bat
+git clone git@github.com:XiaLize/MineFetch.git
+cd MineFetch
+```
 
 ### 方式一：MinGW-w64（推荐，已验证 g++ 11.5）
 
