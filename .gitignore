@@ -8,3 +8,4 @@ testdata-*/
 tests/fixture/
 tests/server.log
 .vs/
+.vscode/
