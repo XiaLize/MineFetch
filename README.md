@@ -133,6 +133,23 @@ minefetch.exe install 1.20.1 --no-pick --mirror mojang
 minefetch.exe install 1.20.1 --dir D:\Games\.minecraft --no-pick
 ```
 
+### 静默安装
+
+适合批处理、计划任务或远程执行。`--silent` 会：
+
+- 不弹文件夹选择窗口
+- 不显示进度和普通提示
+- 只在出错时输出
+- 如果没有指定 `--dir`，直接使用 `%APPDATA%\.minecraft`
+
+```bat
+minefetch.exe install 1.20.1 --dir D:\Games\.minecraft --silent
+```
+
+成功时退出码为 `0`，失败时为 `1`，取消时为 `130`。
+
+`--silent` 只用于 `install`，不能和 `list` / `info` 一起使用。
+
 ### 常用选项
 
 | 选项 | 说明 |
@@ -144,6 +161,7 @@ minefetch.exe install 1.20.1 --dir D:\Games\.minecraft --no-pick
 | `--mirror-url <URL>` | 使用兼容 BMCLAPI 的自定义镜像 |
 | `-t, --threads <1-32>` | 并发线程数，默认 8 |
 | `-f, --force` | 忽略已有文件，全部重新下载 |
+| `-s, --silent` | 静默安装，不弹窗、不输出进度，只显示错误 |
 | `--no-assets` | 不下载资源文件 |
 | `--no-logging` | 不下载日志配置 |
 | `--no-verify` | 跳过 SHA-1 校验，不建议使用 |
@@ -338,3 +356,5 @@ Minecraft 是 Mojang Synergies AB 的商标；本项目与 Mojang / Microsoft �
 ## 许可
 
 [MIT](LICENSE)
+
+（使用AI工具编写）

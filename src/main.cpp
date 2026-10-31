@@ -70,6 +70,7 @@ void printHelp() {
     mf::Console::println("      --mirror-url <URL>  BMCLAPI 兼容镜像的根地址");
     mf::Console::println("  -t, --threads <1-32>    并发下载线程数（默认 8）");
     mf::Console::println("  -f, --force             忽略本地文件，全部重新下载");
+    mf::Console::println("  -s, --silent            静默安装：不弹窗、不输出进度");
     mf::Console::println("      --no-assets         不下载资源文件（assets）");
     mf::Console::println("      --no-logging        不下载日志配置");
     mf::Console::println("      --no-verify         不校验 SHA-1（速度更快但不安全）");
@@ -85,6 +86,7 @@ void printHelp() {
     mf::Console::println("示例:");
     mf::Console::println("  minefetch install 1.20.1");
     mf::Console::println("  minefetch install latest --dir D:\\Games\\.minecraft -t 12");
+    mf::Console::println("  minefetch install 1.20.1 --silent --dir D:\\Games\\.minecraft");
     mf::Console::println("  minefetch list --type all --limit 0");
     mf::Console::println("  minefetch info 1.21.4 --mirror mojang");
     mf::Console::println("");
@@ -116,6 +118,7 @@ struct Options {
     bool fallbackOfficial = true;
     bool pickDir = false;
     bool noPick = false;
+    bool silent = false;
     bool help = false;
     bool versionFlag = false;
     bool selfTest = false;
@@ -205,6 +208,8 @@ Options parseOptions(const std::vector<std::string>& args) {
             options.pickDir = true;
         } else if (!endOptions && arg == "--no-pick") {
             options.noPick = true;
+        } else if (!endOptions && (arg == "-s" || arg == "--silent")) {
+            options.silent = true;
         } else if (!endOptions && (arg == "-v" || arg == "--verbose")) {
             options.verbose = true;
         } else if (!endOptions && !arg.empty() && arg[0] == '-') {
@@ -518,6 +523,17 @@ int wmain(int argc, wchar_t** argv) {
         }
         if (options.selfTest) {
             return runSelfTest();
+        }
+        if (options.silent) {
+            if (options.command.empty()) {
+                options.command = "install";
+            }
+            if (options.command != "install") {
+                throw std::runtime_error("--silent 只能用于 install");
+            }
+            options.noPick = true;
+            options.pickDir = false;
+            mf::Console::setSilent(true);
         }
         const mf::Mirror mirror = makeConfiguredMirror(options);
         if (options.command.empty()) {

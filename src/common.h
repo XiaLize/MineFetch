@@ -53,6 +53,8 @@ class Console {
 public:
     static void initialize();
     static bool isTerminal();
+    static void setSilent(bool silent);
+    static bool isSilent();
     static void enableAnsi();
     static bool ansiEnabled();
     static void clearLine();

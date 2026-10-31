@@ -18,6 +18,7 @@ std::mutex g_consoleMutex;
 bool g_consoleInitialized = false;
 bool g_consoleTerminal = false;
 bool g_consoleAnsi = false;
+std::atomic_bool g_consoleSilent{false};
 
 constexpr const char* kReset = "\x1b[0m";
 constexpr const char* kRed = "\x1b[31m";
@@ -430,6 +431,14 @@ bool Console::isTerminal() {
     return g_consoleTerminal;
 }
 
+void Console::setSilent(bool silent) {
+    g_consoleSilent.store(silent, std::memory_order_relaxed);
+}
+
+bool Console::isSilent() {
+    return g_consoleSilent.load(std::memory_order_relaxed);
+}
+
 void Console::enableAnsi() {
     initialize();
 }
@@ -441,7 +450,7 @@ bool Console::ansiEnabled() {
 
 void Console::clearLine() {
     initialize();
-    if (!g_consoleTerminal) {
+    if (!g_consoleTerminal || g_consoleSilent.load(std::memory_order_relaxed)) {
         return;
     }
     std::lock_guard<std::mutex> lock(g_consoleMutex);
@@ -453,23 +462,30 @@ void Console::clearLine() {
 }
 
 void Console::resetColor() {
-    if (g_consoleAnsi) {
+    if (g_consoleAnsi && !g_consoleSilent.load(std::memory_order_relaxed)) {
         std::cout << kReset;
     }
 }
 
 void Console::setColor(const char* ansi) {
-    if (g_consoleAnsi && ansi != nullptr) {
+    if (g_consoleAnsi && ansi != nullptr &&
+        !g_consoleSilent.load(std::memory_order_relaxed)) {
         std::cout << ansi << std::flush;
     }
 }
 
 void Console::print(const std::string& text) {
+    if (g_consoleSilent.load(std::memory_order_relaxed)) {
+        return;
+    }
     std::lock_guard<std::mutex> lock(g_consoleMutex);
     std::cout << text << std::flush;
 }
 
 void Console::println(const std::string& text) {
+    if (g_consoleSilent.load(std::memory_order_relaxed)) {
+        return;
+    }
     std::lock_guard<std::mutex> lock(g_consoleMutex);
     std::cout << text << '\n' << std::flush;
 }
@@ -485,6 +501,9 @@ void Console::error(const std::string& text) {
 }
 
 void Console::warning(const std::string& text) {
+    if (g_consoleSilent.load(std::memory_order_relaxed)) {
+        return;
+    }
     std::lock_guard<std::mutex> lock(g_consoleMutex);
     if (g_consoleAnsi) {
         std::cout << kYellow << "提示: " << kReset;
@@ -495,6 +514,9 @@ void Console::warning(const std::string& text) {
 }
 
 void Console::success(const std::string& text) {
+    if (g_consoleSilent.load(std::memory_order_relaxed)) {
+        return;
+    }
     std::lock_guard<std::mutex> lock(g_consoleMutex);
     if (g_consoleAnsi) {
         std::cout << kGreen << text << kReset << '\n' << std::flush;
