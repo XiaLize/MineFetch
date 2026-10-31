@@ -150,6 +150,35 @@ minefetch.exe install 1.20.1 --dir D:\Games\.minecraft --silent
 
 `--silent` 只用于 `install`，不能和 `list` / `info` 一起使用。
 
+### 自定义版本名
+
+默认情况下，版本会保存为 `versions\<原版版本号>\`。如果希望启动器里显示自定义名称，可以使用 `--name`：
+
+```bat
+minefetch.exe install 1.20.1 --name "我的1.20.1" --dir D:\Games\.minecraft
+```
+
+下载后会生成：
+
+```text
+.minecraft\versions\我的1.20.1\
+├─ 我的1.20.1.json
+└─ 我的1.20.1.jar
+```
+
+说明：
+
+- 只生成这一个版本文件夹，不会额外创建 `versions\1.20.1\`
+- 版本 JSON 里的 `id` 也会改成自定义名称，启动器会显示这个名字
+- 不能使用官方版本号作为自定义名称，例如已经有 `1.20.1` 时不能再叫 `1.20.1`
+- 名称不能包含 `\ / : * ? " < > |` 等 Windows 非法字符
+- 如果目标名称已存在且属于其他版本，程序会拒绝覆盖
+- 可以和 `--silent` 一起使用
+
+```bat
+minefetch.exe install 1.20.1 --name "整合包-1.20.1" --dir D:\Games\.minecraft --silent
+```
+
 ### 常用选项
 
 | 选项 | 说明 |
@@ -162,6 +191,7 @@ minefetch.exe install 1.20.1 --dir D:\Games\.minecraft --silent
 | `-t, --threads <1-32>` | 并发线程数，默认 8 |
 | `-f, --force` | 忽略已有文件，全部重新下载 |
 | `-s, --silent` | 静默安装，不弹窗、不输出进度，只显示错误 |
+| `--name <名称>` | 自定义版本名，生成独立的版本文件夹 |
 | `--no-assets` | 不下载资源文件 |
 | `--no-logging` | 不下载日志配置 |
 | `--no-verify` | 跳过 SHA-1 校验，不建议使用 |

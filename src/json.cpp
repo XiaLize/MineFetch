@@ -1,6 +1,7 @@
 #include "json.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <limits>
 #include <sstream>
@@ -339,6 +340,123 @@ private:
     size_t position_ = 0;
 };
 
+void appendEscaped(std::string& out, std::string_view text) {
+    static constexpr char kHex[] = "0123456789abcdef";
+    out.push_back('"');
+    for (unsigned char c : text) {
+        switch (c) {
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\b':
+                out += "\\b";
+                break;
+            case '\f':
+                out += "\\f";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                if (c < 0x20) {
+                    out += "\\u00";
+                    out.push_back(kHex[c >> 4]);
+                    out.push_back(kHex[c & 0x0F]);
+                } else {
+                    out.push_back(static_cast<char>(c));
+                }
+                break;
+        }
+    }
+    out.push_back('"');
+}
+
+void appendNumber(std::string& out, double value) {
+    if (!std::isfinite(value)) {
+        out += "0";
+        return;
+    }
+    char buffer[64];
+    if (value == std::floor(value) && std::fabs(value) < 1e15) {
+        std::snprintf(buffer, sizeof(buffer), "%.0f", value);
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "%.17g", value);
+    }
+    out += buffer;
+}
+
+void appendIndent(std::string& out, int depth) {
+    out.push_back('\n');
+    out.append(static_cast<size_t>(depth) * 2, ' ');
+}
+
+void appendValue(std::string& out, const Value& value, bool pretty, int depth) {
+    switch (value.type()) {
+        case Type::Null:
+            out += "null";
+            return;
+        case Type::Bool:
+            out += value.asBool() ? "true" : "false";
+            return;
+        case Type::Number:
+            appendNumber(out, value.asNumber());
+            return;
+        case Type::String:
+            appendEscaped(out, value.asString());
+            return;
+        case Type::Array: {
+            const auto& items = value.asArray();
+            out.push_back('[');
+            for (size_t i = 0; i < items.size(); ++i) {
+                if (i != 0) {
+                    out.push_back(',');
+                }
+                if (pretty) {
+                    appendIndent(out, depth + 1);
+                }
+                appendValue(out, items[i], pretty, depth + 1);
+            }
+            if (pretty && !items.empty()) {
+                appendIndent(out, depth);
+            }
+            out.push_back(']');
+            return;
+        }
+        case Type::Object: {
+            const auto& members = value.members();
+            out.push_back('{');
+            for (size_t i = 0; i < members.size(); ++i) {
+                if (i != 0) {
+                    out.push_back(',');
+                }
+                if (pretty) {
+                    appendIndent(out, depth + 1);
+                }
+                appendEscaped(out, members[i].first);
+                out.push_back(':');
+                if (pretty) {
+                    out.push_back(' ');
+                }
+                appendValue(out, members[i].second, pretty, depth + 1);
+            }
+            if (pretty && !members.empty()) {
+                appendIndent(out, depth);
+            }
+            out.push_back('}');
+            return;
+        }
+    }
+}
+
 }  // namespace
 
 Value Value::makeBool(bool value) {
@@ -441,6 +559,20 @@ const Value& Value::at(std::string_view key) const {
     return *value;
 }
 
+bool Value::set(std::string_view key, Value value) {
+    if (type_ != Type::Object) {
+        return false;
+    }
+    for (auto& member : object_) {
+        if (member.first == key) {
+            member.second = std::move(value);
+            return true;
+        }
+    }
+    object_.emplace_back(std::string(key), std::move(value));
+    return true;
+}
+
 std::string Value::getString(std::string_view key, std::string fallback) const {
     const Value* value = find(key);
     return value != nullptr && value->isString() ? value->asString() : std::move(fallback);
@@ -469,6 +601,15 @@ Value parse(std::string_view text) {
     }
     Parser parser(text);
     return parser.parseDocument();
+}
+
+std::string stringify(const Value& value, bool pretty) {
+    std::string result;
+    appendValue(result, value, pretty, 0);
+    if (pretty) {
+        result.push_back('\n');
+    }
+    return result;
 }
 
 }  // namespace mf::json

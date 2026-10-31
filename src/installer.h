@@ -11,6 +11,7 @@ namespace mf {
 
 struct InstallOptions {
     std::filesystem::path gameDirectory;
+    std::string customName;
     Mirror mirror;
     int threads = 8;
     int retries = 3;

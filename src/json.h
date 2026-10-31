@@ -52,6 +52,7 @@ public:
 
     const Value* find(std::string_view key) const;
     const Value& at(std::string_view key) const;
+    bool set(std::string_view key, Value value);
 
     std::string getString(std::string_view key, std::string fallback = {}) const;
     int64_t getInt64(std::string_view key, int64_t fallback = 0) const;
@@ -68,5 +69,6 @@ private:
 };
 
 Value parse(std::string_view text);
+std::string stringify(const Value& value, bool pretty = true);
 
 }  // namespace mf::json

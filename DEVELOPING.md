@@ -8,7 +8,7 @@
 - WinHTTP：HTTP/HTTPS、系统代理、302 跳转、限流响应
 - Windows CNG（bcrypt）：SHA-1
 - Win32 / COM：UTF-16 路径、文件夹选择窗口
-- 自带 JSON 解析器，不依赖第三方库
+- 自带 JSON 解析器和序列化器，不依赖第三方库
 - 构建产物为单个 `minefetch.exe`，只依赖 Windows 系统 DLL
 
 ## 构建环境

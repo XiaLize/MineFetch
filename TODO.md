@@ -6,7 +6,7 @@
   -[x]加入 CMake 构建、中文 README 和 BMCLAPI 来源说明
   -[x]第一次测试
   -[x]增加静默安装
+  -[x]自定义版本名
 
 ##### In progress
-  -[]自定义版本名
   -[]增加mod加载器安装

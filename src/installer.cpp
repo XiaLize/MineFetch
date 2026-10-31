@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "http.h"
+#include "json.h"
 #include "minecraft.h"
 #include "remote.h"
 #include "sha1.h"
@@ -331,21 +332,63 @@ InstallSummary Installer::runAttempt(const std::string& requestedVersion) {
         throw std::runtime_error("版本 JSON 没有客户端下载信息");
     }
 
-    const std::filesystem::path canonicalVersionDirectory =
-        options_.gameDirectory / L"versions" / pathFromUtf8(version.id);
-    const std::filesystem::path canonicalJsonPath =
-        canonicalVersionDirectory / (pathFromUtf8(version.id).wstring() + L".json");
-    if (canonicalJsonPath != versionJsonPath) {
-        std::filesystem::create_directories(canonicalVersionDirectory, ec);
+    const std::string sourceId = version.id;
+    const std::string outputId =
+        options_.customName.empty() ? sourceId : options_.customName;
+    if (!isSafeMinecraftVersionId(outputId)) {
+        throw std::runtime_error("自定义版本名包含不安全字符: " + outputId);
+    }
+    const bool customName = !iequals(outputId, sourceId);
+    if (customName) {
+        if (iequals(outputId, "latest") || iequals(outputId, "latest-release") ||
+            iequals(outputId, "latest-snapshot") || iequals(outputId, "release") ||
+            iequals(outputId, "snapshot")) {
+            throw std::runtime_error("自定义版本名不能使用 " + outputId);
+        }
+        if (haveManifest && manifest.findVersion(outputId) != nullptr) {
+            throw std::runtime_error("不能使用官方版本号作为自定义名称: " + outputId);
+        }
+    }
+
+    std::string jsonToWrite = rawVersionJson;
+    if (customName) {
+        json::Value document = json::parse(rawVersionJson);
+        if (!document.set("id", json::Value::makeString(outputId))) {
+            throw std::runtime_error("无法修改版本 JSON 的 id");
+        }
+        jsonToWrite = json::stringify(document, true);
+    }
+
+    const std::filesystem::path outputDirectory =
+        options_.gameDirectory / L"versions" / pathFromUtf8(outputId);
+    const std::filesystem::path outputJsonPath =
+        outputDirectory / (pathFromUtf8(outputId).wstring() + L".json");
+    if (customName) {
+        std::error_code existingError;
+        if (std::filesystem::is_regular_file(outputJsonPath, existingError) && !existingError) {
+            std::string existing;
+            if (readFileUtf8(outputJsonPath, existing)) {
+                const std::string existingId = json::parse(existing).getString("id");
+                if (!iequals(existingId, outputId)) {
+                    throw std::runtime_error("版本目录已存在且属于其他版本: " +
+                                             pathToUtf8(outputDirectory));
+                }
+            }
+        }
     }
     std::string writeError;
-    if (!writeFileAtomic(canonicalJsonPath, rawVersionJson, writeError)) {
+    if (!writeFileAtomic(outputJsonPath, jsonToWrite, writeError)) {
         throw std::runtime_error("保存版本 JSON 失败: " + writeError);
     }
 
-    summary.versionId = version.id;
-    Console::println("版本: " + version.id + " (" + (version.type.empty() ? "unknown" : version.type) +
-                     ")");
+    version.id = outputId;
+    summary.versionId = outputId;
+    if (customName) {
+        Console::println("版本: " + outputId + "（自定义名称，基于 " + sourceId + "）");
+    } else {
+        Console::println("版本: " + outputId + " (" +
+                         (version.type.empty() ? "unknown" : version.type) + ")");
+    }
     if (version.javaMajor > 0) {
         Console::println("需要 Java " + std::to_string(version.javaMajor) +
                          (version.javaComponent.empty() ? "" : "（" + version.javaComponent + "）"));
@@ -356,12 +399,12 @@ InstallSummary Installer::runAttempt(const std::string& requestedVersion) {
 
     {
         Task task;
-        task.path = canonicalVersionDirectory / (pathFromUtf8(version.id).wstring() + L".jar");
+        task.path = outputDirectory / (pathFromUtf8(outputId).wstring() + L".jar");
         task.label = relativeLabel(options_.gameDirectory, task.path);
         task.url = version.client.url.empty()
                        ? (options_.mirror.official
                               ? std::string()
-                              : options_.mirror.root + "/version/" + version.id + "/client")
+                              : options_.mirror.root + "/version/" + sourceId + "/client")
                        : options_.mirror.mapUrl(version.client.url);
         task.sha1 = version.client.sha1;
         task.size = version.client.size;

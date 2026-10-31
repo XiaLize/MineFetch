@@ -71,6 +71,7 @@ void printHelp() {
     mf::Console::println("  -t, --threads <1-32>    并发下载线程数（默认 8）");
     mf::Console::println("  -f, --force             忽略本地文件，全部重新下载");
     mf::Console::println("  -s, --silent            静默安装：不弹窗、不输出进度");
+    mf::Console::println("      --name <名称>       自定义版本名（生成单独的版本文件夹）");
     mf::Console::println("      --no-assets         不下载资源文件（assets）");
     mf::Console::println("      --no-logging        不下载日志配置");
     mf::Console::println("      --no-verify         不校验 SHA-1（速度更快但不安全）");
@@ -87,6 +88,7 @@ void printHelp() {
     mf::Console::println("  minefetch install 1.20.1");
     mf::Console::println("  minefetch install latest --dir D:\\Games\\.minecraft -t 12");
     mf::Console::println("  minefetch install 1.20.1 --silent --dir D:\\Games\\.minecraft");
+    mf::Console::println("  minefetch install 1.20.1 --name \"我的1.20.1\"");
     mf::Console::println("  minefetch list --type all --limit 0");
     mf::Console::println("  minefetch info 1.21.4 --mirror mojang");
     mf::Console::println("");
@@ -102,6 +104,7 @@ void printHelp() {
 struct Options {
     std::string command;
     std::string version;
+    std::string customName;
     std::string gameDir;
     std::string mirror = "bmclapi";
     std::string mirrorUrl;
@@ -166,6 +169,12 @@ Options parseOptions(const std::vector<std::string>& args) {
             options.gameDir = optionValue(args, i, arg);
         } else if (!endOptions && mf::startsWith(arg, "--dir=")) {
             options.gameDir = valueAfterEquals(arg, "--dir=");
+        } else if (!endOptions && (arg == "--name" || arg == "--version-name")) {
+            options.customName = optionValue(args, i, arg);
+        } else if (!endOptions && mf::startsWith(arg, "--name=")) {
+            options.customName = valueAfterEquals(arg, "--name=");
+        } else if (!endOptions && mf::startsWith(arg, "--version-name=")) {
+            options.customName = valueAfterEquals(arg, "--version-name=");
         } else if (!endOptions && (arg == "-m" || arg == "--mirror")) {
             options.mirror = optionValue(args, i, arg);
         } else if (!endOptions && mf::startsWith(arg, "--mirror=")) {
@@ -456,6 +465,12 @@ int runSelfTest() {
     require(value.find("array")->asArray().size() == 3, "JSON array");
     require(!value.find("nested")->getBool("ok", true), "JSON bool");
 
+    mf::json::Value document = mf::json::parse(R"({"id":"old","n":42})");
+    require(document.set("id", mf::json::Value::makeString("自定义版本")), "JSON set");
+    const mf::json::Value roundTrip = mf::json::parse(mf::json::stringify(document));
+    require(roundTrip.getString("id") == "自定义版本", "JSON stringify");
+    require(roundTrip.getInt64("n") == 42, "JSON stringify number");
+
     require(mf::sha1Bytes("abc") == "a9993e364706816aba3e25717850c26c9cd0d89d", "SHA-1");
 
     const mf::Mirror bmcl = mf::makeMirror("bmclapi");
@@ -524,6 +539,14 @@ int wmain(int argc, wchar_t** argv) {
         if (options.selfTest) {
             return runSelfTest();
         }
+        if (!options.customName.empty()) {
+            if (options.command != "install") {
+                throw std::runtime_error("--name 只能用于 install");
+            }
+            if (!mf::isSafeMinecraftVersionId(options.customName)) {
+                throw std::runtime_error("自定义版本名包含不安全字符: " + options.customName);
+            }
+        }
         if (options.silent) {
             if (options.command.empty()) {
                 options.command = "install";
@@ -552,6 +575,7 @@ int wmain(int argc, wchar_t** argv) {
 
         mf::InstallOptions install;
         install.gameDirectory = chooseGameDirectory(options, true);
+        install.customName = options.customName;
         install.mirror = mirror;
         install.threads = options.threads;
         install.retries = options.retries;
@@ -632,6 +656,7 @@ int runInteractive(const Options& initialOptions) {
             options.version = line;
             mf::InstallOptions install;
             install.gameDirectory = gameDirectory;
+            install.customName = options.customName;
             install.mirror = mirror;
             install.threads = options.threads;
             install.retries = options.retries;
