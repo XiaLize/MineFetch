@@ -1,0 +1,10 @@
+build/
+build-vs/
+build.log
+*.log
+minefetch.exe
+testdata/
+testdata-*/
+tests/fixture/
+tests/server.log
+.vs/
