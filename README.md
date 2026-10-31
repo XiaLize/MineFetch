@@ -1,135 +1,162 @@
 # MineFetch
 
-一个用 C++17 编写的 Minecraft Java 版命令行下载器，默认通过 **BMCLAPI** 下载，Windows 10/11 x64 可用。
+MineFetch 是一个 Windows 上的 Minecraft Java 版游戏文件下载器。它可以自动补齐客户端、依赖库、资源文件和日志配置，省去手动翻 `versions`、`libraries`、`assets` 目录的麻烦。
 
-GitHub 仓库：<https://github.com/XiaLize/MineFetch>
+默认使用国内可访问的 **BMCLAPI**，下载失败时会自动切换到 Mojang 官方源。
 
-下载预编译版本：<https://github.com/XiaLize/MineFetch/releases/latest>
+**下载最新版：** [MineFetch Releases](https://github.com/XiaLize/MineFetch/releases/latest)
 
-程序只负责补齐游戏文件，不包含微软登录、JVM 启动和 `natives` 解压。下载完成后可以直接交给 HMCL、PCL 等启动器使用，或者在此基础上继续编写启动器。
+**直接下载 exe：** [minefetch.exe](https://github.com/XiaLize/MineFetch/releases/latest/download/minefetch.exe)
 
-> BMCLAPI 下的文件版权归原站点所有。本程序在下载界面明确显示当前下载源；请遵守 [BMCLAPI 文档](https://bmclapidoc.bangbang93.com/) 的使用规范，不要拿它二次封装其他协议。
+> MineFetch 是下载器，不是启动器。它不登录微软账号、不启动游戏、不安装 Java。下载完成后，请用 HMCL、PCL 等启动器打开对应的 `.minecraft` 文件夹。
 
-## 功能
+## 适合什么场景
 
-- 默认 BMCLAPI，也可以切换 Mojang 官方源或任意兼容镜像。
-- 双击或直接运行时会弹出 Windows 文件夹选择窗口，用来选择 `.minecraft` 目录。
-- 下载版本清单、版本 JSON、客户端 jar、依赖库、日志配置、资源索引和全部资源对象。
-- 解析 `rules` 中的 Windows / 架构 / feature 条件。
-- 支持旧版 `natives` / `classifiers` 映射，以及旧版 `virtual`、`map_to_resources` 资源目录。
-- 所有文件按官方 SHA-1 和大小校验；校验失败自动重下。
-- 8 线程并发，进度条显示速度、剩余文件数和失败数。
-- 已完成的文件会跳过；损坏文件会自动识别并重新下载。
-- 下载先写 `.part`，校验成功后再原子替换，避免留下半个 jar。
-- 自动跟随 302 跳转，处理 `429` 的 `Retry-After-short` 限流响应。
-- BMCLAPI 请求失败时，默认自动切换 Mojang 官方源重试（`--no-fallback` 可关闭）。
-- `list` / `info` 同样会在 BMCLAPI 不可用时快速回退官方源，不会卡在 30 秒连接超时或 45 秒限流等待上。
-- 交互模式和命令行都会先输出“正在获取版本清单”，避免出现无反馈的等待。
-- 无第三方运行时依赖：HTTP 使用 WinHTTP，SHA-1 使用 Windows CNG，JSON 解析器自带。
+- 想补全一个已有的 `.minecraft` 目录
+- 国内网络环境，希望优先走 BMCLAPI
+- 不想手动下载几十个依赖库和几千个资源文件
+- 需要下载旧版本或快照
+- 希望文件完整性有校验，而不是只看“下载完成”
 
-## 构建
+## 快速开始
 
-克隆仓库：
+### 1. 下载程序
 
-```bat
-git clone git@github.com:XiaLize/MineFetch.git
-cd MineFetch
-```
+从 [Releases](https://github.com/XiaLize/MineFetch/releases/latest) 下载 `minefetch.exe`。
 
-### 方式一：MinGW-w64（推荐，已验证 g++ 11.5）
+程序是绿色版，不需要安装，也没有注册表写入。放到任意文件夹即可运行。
 
-代码目录按你的环境使用了 `C:\mingw64`：
+> `minefetch.exe` 没有做代码签名，Windows SmartScreen 可能提示“Windows 已保护你的电脑”。如果确认文件来自本仓库，可以点“更多信息”再点“仍要运行”。
 
-```bat
-build.bat
-```
+### 2. 双击运行
 
-或者手动：
+程序会先弹出文件夹选择窗口：
 
-```bat
-set PATH=C:\mingw64\bin;%PATH%
-mingw32-make -j8
-```
+- 选择已有的 `.minecraft` 文件夹，或
+- 在窗口里新建一个 `.minecraft` 文件夹
 
-产物为根目录下的 `minefetch.exe`。Makefile 使用静态链接，不依赖 MinGW DLL。
-
-### 方式二：CMake + Visual Studio
-
-```bat
-cmake -S . -B build-vs -G "Visual Studio 17 2022" -A x64
-cmake --build build-vs --config Release
-```
-
-产物为 `build-vs\Release\minefetch.exe`。CMake 已把 MSVC 运行库设为静态链接。
-
-要求：Windows 10/11、x64、支持 C++17 的编译器。链接 `winhttp`、`bcrypt`、`ole32`、`uuid` 和 `shell32`。
-
-## 使用
+如果取消选择，会使用默认目录：
 
 ```text
-minefetch install <版本> [选项]
-minefetch <版本> [选项]
-minefetch list [选项]
-minefetch info <版本> [选项]
-minefetch
+%APPDATA%\.minecraft
 ```
 
-不带参数运行会先弹出文件夹选择窗口，然后进入交互模式；直接双击 `minefetch.exe` 也可以。
+### 3. 输入版本
 
-从命令行运行 `minefetch install ...` 且没有指定 `--dir` 时，同样会弹窗选择目录；脚本或自动化场景请加 `--no-pick`，或直接用 `--dir` 指定路径。取消弹窗时会使用默认目录 `%APPDATA%\.minecraft`。
+窗口关闭后，在控制台输入版本号，例如：
 
-### 常用示例
+```text
+1.20.1
+```
+
+直接按回车会下载最新正式版。输入 `list` 可以查看版本，输入 `q` 退出。
+
+### 4. 等待完成
+
+程序会显示下载进度、速度、文件数量和失败数。下载完成后会按官方 SHA-1 校验文件。
+
+### 5. 用启动器打开
+
+在 HMCL、PCL 等启动器中把游戏目录指向刚才选择的 `.minecraft` 文件夹，选择对应版本即可启动。
+
+## 它能做什么
+
+- 下载客户端 jar、版本 JSON、依赖库、日志配置、资源索引和全部资源对象
+- 支持正式版、快照和旧版本
+- 自动处理 Windows 平台相关的依赖规则
+- 支持旧版 `natives` 和旧版资源目录
+- 有官方 SHA-1 的文件都会校验，损坏文件自动重新下载
+- 多线程下载，显示实时进度
+- 中断后重新运行会跳过已完成文件
+- 默认 BMCLAPI，失败自动回退 Mojang 官方源
+- 处理 BMCLAPI 的 429 限流，等待后重试
+- 支持命令行和双击交互两种方式
+
+## 它不能做什么
+
+MineFetch 只负责“把游戏文件下载完整”，以下事情不包含：
+
+- 不登录微软账号
+- 不启动游戏
+- 不安装或管理 Java
+- 不写 `launcher_profiles.json`
+- 不解压 `natives`（启动器会在启动时处理）
+- 不下载服务端 jar
+- 不支持 `inheritsFrom` 的整合版本，例如 Forge、NeoForge、OptiFine 的版本 JSON
+
+如果你要安装 Forge、Fabric 或整合包，请使用对应的启动器或安装器。
+
+## 命令行使用
+
+如果不想用交互模式，可以直接在命令提示符或 PowerShell 中运行。
 
 ```bat
-:: 下载最新正式版到默认目录 %APPDATA%\.minecraft
-minefetch install latest
+:: 下载最新正式版（会弹窗选择目录）
+minefetch.exe install latest
 
-:: 下载 1.20.1 到独立目录
-minefetch install 1.20.1 --dir D:\Games\.minecraft
+:: 直接下载到默认目录，不弹窗
+minefetch.exe install latest --no-pick
 
-:: 只补齐客户端、依赖库和日志配置，不下载 600MB+ 的资源
-minefetch install 1.20.1 --no-assets
+:: 下载 1.20.1 到指定目录
+minefetch.exe install 1.20.1 --dir D:\Games\.minecraft
 
-:: 查看前 20 个正式版
-minefetch list --limit 20
+:: 查看正式版列表
+minefetch.exe list
 
-:: 查看所有快照
-minefetch list --type all --limit 0
+:: 查看所有版本
+minefetch.exe list --type all --limit 0
 
-:: 查看版本信息和 SHA-1
-minefetch info 1.21.4
+:: 查看某个版本的信息
+minefetch.exe info 1.21.4
+
+:: 只下载核心文件，不下载资源
+minefetch.exe install 1.20.1 --no-pick --no-assets
 
 :: 使用 Mojang 官方源
-minefetch install 1.20.1 --mirror mojang
-
-:: 使用兼容 BMCLAPI 的私有镜像
-minefetch install 1.20.1 --mirror-url https://mirror.example.com
+minefetch.exe install 1.20.1 --no-pick --mirror mojang
 ```
 
-### 全部选项
+### 目录选择
+
+| 场景 | 行为 |
+| --- | --- |
+| 双击运行 | 自动弹窗选择 `.minecraft` |
+| 命令行安装且没有 `--dir` | 自动弹窗选择 `.minecraft` |
+| 取消弹窗 | 使用 `%APPDATA%\.minecraft` |
+| 指定 `--dir` | 直接使用指定目录，不弹窗 |
+| `--pick-dir` | 强制弹窗 |
+| `--no-pick` | 不弹窗，适合脚本和自动化 |
+
+例如脚本中不想弹窗：
+
+```bat
+minefetch.exe install 1.20.1 --dir D:\Games\.minecraft --no-pick
+```
+
+### 常用选项
 
 | 选项 | 说明 |
 | --- | --- |
-| `-d, --dir <目录>` | 游戏目录，默认 `%APPDATA%\.minecraft` |
-| `--pick-dir` | 强制弹窗选择 `.minecraft` 文件夹 |
-| `--no-pick` | 不自动弹窗，直接使用默认或 `--dir` 指定的目录 |
+| `-d, --dir <目录>` | 指定游戏目录 |
+| `--pick-dir` | 弹窗选择 `.minecraft` 文件夹 |
+| `--no-pick` | 不自动弹窗 |
 | `-m, --mirror <源>` | `bmclapi`（默认）或 `mojang` |
-| `--mirror-url <URL>` | 自定义 BMCLAPI 兼容镜像根地址 |
+| `--mirror-url <URL>` | 使用兼容 BMCLAPI 的自定义镜像 |
 | `-t, --threads <1-32>` | 并发线程数，默认 8 |
 | `-f, --force` | 忽略已有文件，全部重新下载 |
-| `--no-assets` | 不下载 assets |
+| `--no-assets` | 不下载资源文件 |
 | `--no-logging` | 不下载日志配置 |
-| `--no-verify` | 跳过 SHA-1 校验（更快，但可能保留损坏文件） |
+| `--no-verify` | 跳过 SHA-1 校验，不建议使用 |
 | `--no-fallback` | BMCLAPI 失败时不自动切换官方源 |
 | `--retries <0-10>` | 单个请求失败后的重试次数，默认 3 |
 | `--timeout <5-300>` | 网络超时秒数，默认 30 |
-| `-v, --verbose` | 输出每个正在下载的文件 |
+| `-v, --verbose` | 显示每个正在下载的文件 |
 | `--type <类型>` | `list` 过滤：`release`、`snapshot`、`all` |
-| `--limit <数量>` | `list` 显示数量，`0` 为全部，默认 30 |
+| `--limit <数量>` | `list` 显示数量，`0` 表示全部 |
 
-## 下载后的目录
+## 下载后的文件
 
-以 `--dir D:\Games\.minecraft`、版本 `1.20.1` 为例：
+以选择 `D:\Games\.minecraft`、下载 `1.20.1` 为例：
 
 ```text
 D:\Games\.minecraft\
@@ -137,122 +164,177 @@ D:\Games\.minecraft\
 │  ├─ 1.20.1.json
 │  └─ 1.20.1.jar
 ├─ libraries\
-│  └─ ...（按 Maven 路径存放）
+│  └─ ...（游戏依赖库）
 ├─ assets\
-│  ├─ indexes\5.json
-│  ├─ objects\ab\abcdef...
-│  └─ virtual\legacy\...（仅旧版资源索引需要）
-├─ resources\...（仅 map_to_resources 的旧版索引需要）
+│  ├─ indexes\
+│  ├─ objects\
+│  └─ virtual\legacy\...（仅旧版需要）
+├─ resources\...（仅部分旧版需要）
 └─ logging\client-1.12.xml
 ```
 
-## BMCLAPI 映射
+不同版本会共享 `libraries` 和 `assets`，所以下载第二个版本时通常只需要补少量文件。
 
-程序读取的版本 JSON 里仍然可能是 Mojang 官方 URL，因此下载前会统一改写：
+## 常见问题
 
-| 官方前缀 | BMCLAPI |
-| --- | --- |
-| `https://piston-meta.mojang.com` | `https://bmclapi2.bangbang93.com` |
-| `https://launchermeta.mojang.com` | `https://bmclapi2.bangbang93.com` |
-| `https://launcher.mojang.com` | `https://bmclapi2.bangbang93.com` |
-| `https://piston-data.mojang.com` | `https://bmclapi2.bangbang93.com` |
-| `https://libraries.minecraft.net` | `https://bmclapi2.bangbang93.com/maven` |
-| `https://resources.download.minecraft.net` | `https://bmclapi2.bangbang93.com/assets` |
+### 双击后没有窗口
 
-版本清单使用：
+1. 等 1～2 秒，程序需要先初始化。
+2. 确认没有加 `--no-pick` 参数。
+3. 如果通过脚本或重定向输出运行，Windows 不会把它当作交互终端，此时不会自动弹窗，请手动加 `--pick-dir`，或用 `--dir` 指定目录。
+4. 如果 SmartScreen 拦住了程序，点“更多信息”再点“仍要运行”。
 
-```text
-https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json
-```
+### 提示 BMCLAPI 失败
 
-客户端在缺少 `downloads.client.url` 时还会尝试：
+程序会自动切换到 Mojang 官方源，通常不需要手动处理。
 
-```text
-https://bmclapi2.bangbang93.com/version/<版本>/client
-```
-
-BMCLAPI 会先返回 302，再跳到 OpenBMCLAPI 节点。程序使用 WinHTTP 自动跟随跨域跳转；节点偶尔会重置连接，重试会重新获取跳转地址。
-
-### 关于限流
-
-实测 BMCLAPI 会在短时间内返回：
-
-```http
-HTTP/1.1 429 Too Many Requests
-Retry-After-short: 45
-```
-
-程序会读取 `Retry-After-short` 并等待，随后重试。大批量资源下载时 BMCLAPI 可能较慢；如果多次失败，默认会自动切到 Mojang 官方源，也可以手动加 `--mirror mojang`。`list` / `info` 在默认配置下会直接快速回退，不会反复等待限流。
-
-## 实现结构
-
-| 文件 | 作用 |
-| --- | --- |
-| `src/main.cpp` | 命令行解析、交互模式、`list` / `info`、自检 |
-| `src/folder_dialog.cpp` | Windows 文件夹选择窗口（`IFileOpenDialog`） |
-| `src/installer.cpp` | 下载计划、SHA-1 扫描、并发队列、进度、旧版资源复制 |
-| `src/remote.cpp` | 版本清单/版本 JSON 获取与本地缓存回退 |
-| `src/minecraft.cpp` | 版本 JSON、libraries、rules、assets index 解析 |
-| `src/mirror.cpp` | BMCLAPI / Mojang URL 映射 |
-| `src/http.cpp` | WinHTTP 封装、跳转、重试、429、超时、流式下载 |
-| `src/json.cpp` | 自带的小型 JSON 解析器 |
-| `src/sha1.cpp` | Windows CNG SHA-1 |
-| `src/common.cpp` | UTF-8/宽字符路径、终端、格式化 |
-
-### 下载流程
-
-1. 获取 `version_manifest_v2.json`，解析最新版本和版本列表。
-2. 获取版本 JSON，按 SHA-1 校验并保存到 `versions/<id>/<id>.json`。
-3. 解析 `downloads.client`、`libraries`、`logging` 和 `assetIndex`。
-4. 计算 Windows 平台真正需要的依赖库，包括旧版 natives classifier。
-5. 拉取资源索引，生成每个资源对象的任务。
-6. 扫描本地文件：大小一致且 SHA-1 正确就跳过。
-7. 多线程下载，先写 `.part`，校验通过后替换目标文件。
-8. 为旧版索引生成 `assets/virtual/legacy` 或 `resources` 副本。
-
-## 测试
-
-无网络自检：
+如果想直接使用官方源：
 
 ```bat
-minefetch.exe --self-test
+minefetch.exe install 1.20.1 --no-pick --mirror mojang
 ```
 
-本地镜像端到端测试：
+如果两个源都失败，请检查网络、DNS 或代理设置。
 
-```powershell
-# 终端 1：生成 fixture 并启动本地 HTTP 服务
-powershell -ExecutionPolicy Bypass -File tests\make_fixture.ps1
-powershell -ExecutionPolicy Bypass -File tests\serve_fixture.ps1
+### 提示 HTTP 429 Too Many Requests
 
-# 终端 2：下载
-.\minefetch.exe install testver --mirror-url http://127.0.0.1:8765 --dir .\testdata-local -t 4 -v
+BMCLAPI 在短时间内请求过多会限流。程序会读取等待时间并重试。
+
+如果不想等，可以：
+
+```bat
+minefetch.exe install 1.20.1 --no-pick --mirror mojang
 ```
 
-fixture 覆盖了版本清单、302 跳转、客户端、依赖库、日志、资源索引、资源对象、SHA-1 校验和旧版资源目录复制。
+或者等一分钟左右再运行。
 
-## 限制
+### 下载中断了怎么办
 
-- 只支持独立原版版本；遇到 `inheritsFrom`（Forge / NeoForge / OptiFine 等）会停止并提示。
-- 不下载 Java 运行时，不安装 Java，不写 `launcher_profiles.json`。
-- 不启动游戏，不处理微软登录。
-- 不把 `natives` jar 解压到 `natives` 目录；这一步属于启动器的工作。
-- 不下载服务端 jar。
-- 网络使用 WinHTTP 的默认代理设置。若需要代理，可先执行：
+重新运行同一条命令即可。已经完整且校验通过的文件会跳过，损坏的文件会重新下载。
 
-  ```bat
-  netsh winhttp set proxy 127.0.0.1:7890
-  netsh winhttp reset proxy
-  ```
+例如：
 
-## 致谢与来源
+```bat
+minefetch.exe install 1.20.1 --dir D:\Games\.minecraft
+```
 
+### 游戏缺少声音、语言或材质
+
+可能是用了 `--no-assets`，或者资源没有下载完整。去掉 `--no-assets` 重新运行：
+
+```bat
+minefetch.exe install 1.20.1 --dir D:\Games\.minecraft
+```
+
+### 下载后启动器里没有版本
+
+确认启动器指向的是正确的 `.minecraft` 目录，而不是它的上级目录。
+
+正确：
+
+```text
+D:\Games\.minecraft
+```
+
+错误：
+
+```text
+D:\Games
+```
+
+### 启动器提示缺少 Java
+
+MineFetch 不安装 Java。请安装对应版本需要的 Java，或使用自带 Java 管理功能的启动器。
+
+例如 1.20.1 通常需要 Java 17，较新的版本可能需要 Java 21 或更高。
+
+### 启动游戏时报 natives 相关错误
+
+MineFetch 只下载 natives jar，不解压。请让启动器负责解压，或重新用启动器启动一次该版本。
+
+### 下载很慢
+
+可以尝试：
+
+```bat
+minefetch.exe install 1.20.1 --threads 12 --no-pick
+```
+
+线程不是越多越好。网络不稳定时，保持默认 8 或更低通常更稳。
+
+### 需要走代理
+
+程序使用 WinHTTP 的默认代理设置。可以先设置：
+
+```bat
+netsh winhttp set proxy 127.0.0.1:7890
+```
+
+取消代理：
+
+```bat
+netsh winhttp reset proxy
+```
+
+### 想强制重新下载
+
+```bat
+minefetch.exe install 1.20.1 --dir D:\Games\.minecraft --force
+```
+
+这会重新下载所有文件，包括已经完整的文件。一般不需要。
+
+### 如何更新 MineFetch
+
+下载新版本的 `minefetch.exe`，替换旧文件即可。程序没有配置文件，也不需要迁移数据。
+
+### 如何卸载
+
+MineFetch 不写注册表、不写系统目录。删除 `minefetch.exe` 即可。
+
+下载到 `.minecraft` 里的游戏文件不会自动删除；如果不需要，手动删除对应目录。
+
+## 安全与隐私
+
+- 不要求微软账号，不读取账号信息
+- 不包含遥测或统计上报
+- 只访问版本清单、依赖库和资源下载地址
+- 提供官方 SHA-1 的文件都会校验
+- 下载先写 `.part`，校验成功后才替换目标文件
+- 源码公开，可自行审查或构建
+
+BMCLAPI 只作为下载镜像使用，游戏文件版权归原站点所有。使用 BMCLAPI 时请遵守其使用规范。
+
+## 系统要求
+
+- Windows 10 或 Windows 11，x64
+- 建议至少预留 1 GB 磁盘空间（现代版本完整资源约 700 MB，旧版本更小）
+- 首次运行不需要管理员权限
+
+## 获取帮助
+
+- 先查看上面的常见问题
+- 在 [GitHub Issues](https://github.com/XiaLize/MineFetch/issues) 反馈问题
+- 反馈时请附上：
+  - 运行的完整命令
+  - 控制台错误信息
+  - Windows 版本
+  - 下载的 Minecraft 版本
+
+## 开发者
+
+构建方法、代码结构、BMCLAPI 映射和本地测试说明见 [DEVELOPING.md](DEVELOPING.md)。
+
+源码仓库：<https://github.com/XiaLize/MineFetch>
+
+## 致谢
+
+- [BMCLAPI](https://bmclapi2.bangbang93.com/)：默认下载镜像
 - [BMCLAPI 文档](https://bmclapidoc.bangbang93.com/)
 - [Minecraft Wiki：教程/编写启动器](https://zh.minecraft.wiki/w/Tutorial:%E7%BC%96%E5%86%99%E5%90%AF%E5%8A%A8%E5%99%A8)
-- [BMCLAPI 主站](https://bmclapi2.bangbang93.com/)
 
 Minecraft 是 Mojang Synergies AB 的商标；本项目与 Mojang / Microsoft 无隶属关系。
 
-## License
+## 许可
 
 [MIT](LICENSE)
